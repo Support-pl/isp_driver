@@ -1,0 +1,72 @@
+#!/usr/bin/env ruby
+
+# -------------------------------------------------------------------------- #
+# Copyright 2018, IONe Cloud Project, Support.by                             #
+#                                                                            #
+# Licensed under the Apache License, Version 2.0 (the "License"); you may    #
+# not use this file except in compliance with the License. You may obtain    #
+# a copy of the License at                                                   #
+#                                                                            #
+# http://www.apache.org/licenses/LICENSE-2.0                                 #
+#                                                                            #
+# Unless required by applicable law or agreed to in writing, software        #
+# distributed under the License is distributed on an "AS IS" BASIS,          #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.   #
+# See the License for the specific language governing permissions and        #
+# limitations under the License.                                             #
+# -------------------------------------------------------------------------- #
+
+ONE_LOCATION=ENV["ONE_LOCATION"] if !defined?(ONE_LOCATION)
+
+if !ONE_LOCATION
+    RUBY_LIB_LOCATION="/usr/lib/one/ruby" if !defined?(RUBY_LIB_LOCATION)
+else
+    RUBY_LIB_LOCATION=ONE_LOCATION+"/lib/ruby" if !defined?(RUBY_LIB_LOCATION)
+end
+
+$: << RUBY_LIB_LOCATION
+$: << '/usr/lib/one/ruby'
+
+require 'opennebula'
+require 'isp_driver/lib_isp_driver'
+
+host  = ARGV[1]
+id    = ARGV[2]
+
+
+vm = OpenNebula::VirtualMachine.new_with_id id, OpenNebula::Client.new
+vm.info!
+
+user = OpenNebula::User.new_with_id vm['/VM/UID'].to_i, OpenNebula::Client.new
+user.info!
+
+host = ISPDriver.vm_host vm
+host = OpenNebula::Host.new_with_id host, OpenNebula::Client.new
+host.info!
+
+lcm_state = vm.lcm_state_str
+deploy_id = vm.deploy_id
+
+isp_driver = ISPDriver::Client.new(host.id)
+
+
+if (lcm_state == 'BOOT' && (deploy_id.nil? || deploy_id == "" || deploy_id == '--')) || lcm_state == 'BOOT_FAILURE' then
+    user_template = vm.to_hash['VM']['USER_TEMPLATE']
+
+    def check_type v
+        v.to_i.to_s == v ? v.to_i : v
+    end
+
+    params = user_template['ISP_VARS'].inject({}){|r, (k, v)| r[k.downcase.to_sym] = check_type(v); r}
+    params.merge!(datacenter: host['//DATACENTER'].to_i)
+
+    deploy_id = isp_driver.order(params)
+
+    isp_driver.passwd(deploy_id, vm['USER_TEMPLATE/PASSWORD']) # вставить пасс
+
+
+elsif deploy_id then
+    isp_driver.invoke('resume', vm.id)
+else
+    puts 'Not now, sorry'
+end
