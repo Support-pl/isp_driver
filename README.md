@@ -2,7 +2,7 @@
 ISP Driver for OpenNebula Provides connection between OpenNebula and ISP BillManager.
 
 ## Installation
-1. Clone [Github repo]() or download and unpack it.
+1. Clone [Github repo](https://github.com/ione-cloud/isp_driver) or download and unpack it.
 2. Put `vmm` to `~oneadmin/remmotes`
 3. Put `im` to `~oneadmin/remmotes`
 4. Paste code from `driver.conf` into `/etc/one/oned.conf`
